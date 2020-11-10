@@ -556,6 +556,7 @@ describe('test', () => {
   })
 })
 ```
+
 ### 5. 设置超时时间
 
 > it 内部逻辑多的时候 (一个 it 测试了多个异步不走，含多个 act)，可能会超时（3000ms）, 可在 jest.setupEnv.ts 中配置 超时时间
@@ -603,7 +604,7 @@ it('Render page BookingReport test test page change option', async () => {
 
 ![1010](./img/1010.png)
 
-额外的配置：最多打印 100000 行，同时你的控制台也需要设置，不然控制太只支持 1k 行也是不够的
+额外的配置：使其最多可打印 100000 行，同时你的控制台也需要设置，不然控制台只支持 1k 行也是不够的
 
 ``` javascript
 // package.json
