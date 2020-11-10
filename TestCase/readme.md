@@ -172,31 +172,7 @@ expect(button.innerHTML).toBe(3);
 ```
 
 上面两种测试用例的写法都会通过吗？
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
----
+
 ---
 ---
 ---
@@ -419,8 +395,7 @@ beforeAll(() => {
   // ignore debug
   sypDebug = jest.spyOn(window.console, 'debug');
   sypDebug.mockImplementation(() => null);
-  // mock date to 2020-5-17
-  advanceTo('2020-5-17');
+  advanceTo('2020-6-12');
 });
 afterAll(() => {
   // 消除对 debug 的代理
@@ -440,14 +415,9 @@ afterAll(() => {
 
 ``` javascript
 /*
- * @Author: j.yangf
- * @Date: 2020-07-27 16:51:07
- * @LastEditTime: 2020-10-30 18:39:01
- * @LastEditors: j.yangf
  * @Description:
- * // 封装以下的写法
  * // const history = createMemoryHistory();
- * // history.push('/partners/report/booking');
+ * // history.push('/app/page1/aaa');
  * // let el;
  * // await act(async () => {
  * //   el = await render((
@@ -458,7 +428,6 @@ afterAll(() => {
  * //     </ProvideWarp>
  * //   ));
  * // });
- * @FilePath: /partner-online/test/utils/renderWithRoot.tsx
  */
 import React from 'react';
 import { render, RenderResult } from '@testing-library/react';
@@ -471,7 +440,6 @@ import ProvideWarp from 'src/providerWarp';
 export interface RootRenderResType extends RenderResult {
   _history: MemoryHistory;
 }
-// test utils file
 export function renderWithRoot(
   ui,
   {
@@ -488,9 +456,6 @@ export function renderWithRoot(
   );
   return {
     ...render(ui, { wrapper: Wrapper }),
-    // adding `history` to the returned utilities to allow us
-    // to reference it in our tests (just try to avoid using
-    // this to test implementation details).
     _history: history,
   };
 }
@@ -501,11 +466,11 @@ export function renderWithRoot(
 ``` javascript
 describe('test', () => {
   it('test', async () => {
-    const { default: App } = await import('src/pages/firstLogin/index');
+    const { default: App } = await import('src/pages/testPage/index');
     let el: RootRenderResType;
     await act(async () => {
       el = await renderWithRoot((<App />), {
-        route: PageUrl.firstLogin, // '/partners/firstLogin' 页面url
+        route: PageUrl.testPage, // '/app/testPage' 页面url
       });
     });
   })
@@ -517,7 +482,7 @@ describe('test', () => {
 ``` javascript
 // 开头引入会导致后面 mock 的 __CONFIG__ 无法被正常读取
 // 原因: import 是编译时执行，编译的时候就会读取 __CONFIG__ 了。所以要改写成 动态导入
-// import App from 'src/pages/firstLogin/index'; 
+// import App from 'src/pages/testPage/index'; 
 describe('test', () => {
   beforeEach(() => {
     window.__CONFIG__ = {
@@ -529,13 +494,13 @@ describe('test', () => {
     // import App 之前 mock 好 __CONFIG__ 对象。
     window.__CONFIG__ = {
       ...window.__CONFIG__,
-      uid: mockUidForCheckState.none,
+      uid: mockState.none,
     };
-    const { default: App } = await import('src/pages/firstLogin/index');
+    const { default: App } = await import('src/pages/testPage/index');
     let el: RootRenderResType;
     await act(async () => {
       el = await renderWithRoot((<App />), {
-        route: PageUrl.firstLogin, // '/partners/firstLogin' 页面url
+        route: PageUrl.testPage, // '/app/testPage' 页面url
       });
     });
   });
@@ -544,13 +509,13 @@ describe('test', () => {
     // import App 之前 mock 好 __CONFIG__ 对象。
     window.__CONFIG__ = {
       ...window.__CONFIG__,
-      uid: mockUidForCheckState.ok,
+      uid: mockState.ok,
     };
-    const { default: App } = await import('src/pages/firstLogin/index');
+    const { default: App } = await import('src/pages/testPage/index');
     let el: RootRenderResType;
     await act(async () => {
       el = await renderWithRoot((<App />), {
-        route: PageUrl.firstLogin, // '/partners/firstLogin' 页面url
+        route: PageUrl.testPage, // '/app/testPage' 页面url
       });
     });
   })
@@ -559,7 +524,7 @@ describe('test', () => {
 
 ### 5. 设置超时时间
 
-> it 内部逻辑多的时候 (一个 it 测试了多个异步步骤，含多个 act)，可能会超时（3000ms）, 可在 jest.setupEnv.ts 中配置 超时时间
+> it 内部逻辑多的时候 (一个 it 测试了多个异步步骤，含多个 act)，可能会超时（5000ms）, 可在 jest.setupEnv.ts 中配置 超时时间
 
 ![1009](./img/1009.png)
 
@@ -570,7 +535,7 @@ describe('test', () => {
 Demo:
 
 ``` javascript
-it('Render page BookingReport test test page change option', async () => {
+it('Render page', async () => {
   let el;
   await act(async () => {
     el = await renderWithRoot((
@@ -598,7 +563,7 @@ it('Render page BookingReport test test page change option', async () => {
     fireEvent.click(page2Btn);
   });
   const page2TrArr = table.querySelectorAll('tbody tr');
-  expect(page2TrArr.length).toBe(mockListDataPage2.allianceOrderList.length);
+  expect(page2TrArr.length).toBe(mockData.aoList.length);
 });
 ```
 
@@ -609,11 +574,6 @@ it('Render page BookingReport test test page change option', async () => {
 ``` javascript
 // package.json
 "scripts": {
-  "test": "jest",
-  "test:update": "npm run test -- --updateSnapshot",
-  "test:coverage": "npm run test -- --coverage",
-  "test:ci": "jest --coverage --json --outputFile=./coverage/test-result.json",
-
   "test:debug": "DEBUG_PRINT_LIMIT=100000 npm run test -- --updateSnapshot --coverage",
 },
 ```
@@ -623,35 +583,16 @@ it('Render page BookingReport test test page change option', async () => {
 ``` javascript
 // 默认配置
 config.collectCoverageFrom = [
-  '<rootDir>/app/ad/**/*.{ts,tsx,js,jsx}',
-  '<rootDir>/app/views/**/*.{ts,tsx,js,jsx}',
+  '<rootDir>/app/**/*.{ts,tsx,js,jsx}',
 ];
 // debug 时指定测哪些目录下文件的覆盖率情况
 const _collectCoverageFrom = [
-  // '<rootDir>/app/views/src/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/common/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/report/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/account/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/tools/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/tools/staticbanner/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/tools/dynamicBanner/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/tools/searchBox/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/tools/ApiTool/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/dashboard/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/faq/**/*.{ts,tsx,js,jsx}',
-  // '<rootDir>/app/views/src/pages/firstLogin/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/src/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/testPage/**/*.{ts,tsx,js,jsx}',
 ];
 // debug 时指定测哪个 test case 文件
 const _testMatch = [
-  // '<rootDir>/test/ap/pages/tools/**/?(*.)+(spec|test).[jt]s?(x)',
-  // '<rootDir>/test/ap/pages/tools/staticbanner.test.tsx',
-  // '<rootDir>/test/ap/pages/report/paymentVoucher.test.js',
-  // '<rootDir>/test/ap/pages/tools/dynamicbanner.test.tsx',
-  // '<rootDir>/test/ap/pages/tools/apitool.test.tsx',
-  // '<rootDir>/test/ap/pages/tools/searchbox.test.tsx',
-  // '<rootDir>/test/ap/pages/dashboard/index.test.tsx',
-  // '<rootDir>/test/ap/pages/faq/index.test.tsx',
-  '<rootDir>/test/ap/pages/firstLogin/index.test.tsx',
+  '<rootDir>/test/pages/testPage/index.test.tsx',
 ];
 
 if (_collectCoverageFrom.length > 0) config.collectCoverageFrom = _collectCoverageFrom;
