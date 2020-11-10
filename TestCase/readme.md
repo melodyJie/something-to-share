@@ -382,6 +382,280 @@ it("should display fetched data", async () => {
 });
 ```
 
-## 三、我推荐 [testing-library](https://testing-library.com/docs/react-testing-library/intro)
+## 三、我推荐 [@testing-library/react](https://testing-library.com/docs/react-testing-library/intro) 这个库
+
+> 该库对 `react-test-renderer` 和 `react-dom/test-utils` 有较好封装，使用起来方便快捷，极大的减少了编写测试用例的时间。
 
 ## 四、踩过的坑
+
+### 1. Jest 是`基于 Node.js 运行的`。即在 Node.js 运行时里面模拟浏览器 document 等 DOM api
+
+![1005](./img/1005.png)
+
+> 对于某些可以在 Node Browser 两个环境运行的包，jest 运行时会执行 node 环境下的代码，而我们实际测的应该是 Browser 环境下的代码，从而导致报错
+
+解决办法：
+
+![1006](./img/1006.png)
+
+> 通过 Jest 配置项中的 moduleNameMapper 属性显示指定 某包 的 执行文件路径
+
+### 2. 使用 jest-date-mock 功能 mock Date 对象
+
+> 如果测试用例中有生成过 snapshot 快照，且快照代码里用用到 new Date(), 那么每天 跑测试用例生成的快照都是不一致大，导致今天通过的测试用例，明天就通过不了了。
+
+``` javascript
+// jest.config.ts
+config.setupFiles = [
+  '<rootDir>/testConfig/jest.setup.ts',
+];
+config.setupFilesAfterEnv = [
+  '<rootDir>/testConfig/jest.setupEnv.ts',
+];
+
+// jest.setupEnv.ts
+let sypDebug: jest.SpyInstance;
+beforeAll(() => {
+  // ignore debug
+  sypDebug = jest.spyOn(window.console, 'debug');
+  sypDebug.mockImplementation(() => null);
+  // mock date to 2020-5-17
+  advanceTo('2020-5-17');
+});
+afterAll(() => {
+  // 消除对 debug 的代理
+  sypDebug.mockRestore();
+  // 消除对 Date 对象的代理
+  clearDateMock();
+});
+```
+
+### 3. 建议对项目的 root provider 统一管理, 便于代码的维护，更加便利测试用例的编写（可以统一维护，不需要一个一个单独的 Mock）
+
+![1007](./img/1007.png)
+
+![1008](./img/1008.png)
+
+在我们以页面维度编写测试用例时，好处就体现出来了。我们只需要对 render 做一层包装，就可以方便快捷的测试任何一个子页面，而无需重复的编写 provider 的 mock.
+
+``` javascript
+/*
+ * @Author: j.yangf
+ * @Date: 2020-07-27 16:51:07
+ * @LastEditTime: 2020-10-30 18:39:01
+ * @LastEditors: j.yangf
+ * @Description:
+ * // 封装以下的写法
+ * // const history = createMemoryHistory();
+ * // history.push('/partners/report/booking');
+ * // let el;
+ * // await act(async () => {
+ * //   el = await render((
+ * //     <ProvideWarp>
+ * //       <Router history={history}>
+ * //         <Report />
+ * //       </Router>
+ * //     </ProvideWarp>
+ * //   ));
+ * // });
+ * @FilePath: /partner-online/test/utils/renderWithRoot.tsx
+ */
+import React from 'react';
+import { render, RenderResult } from '@testing-library/react';
+import {
+  Router,
+} from 'react-router-dom';
+import { createMemoryHistory, MemoryHistory } from 'history';
+import ProvideWarp from 'src/providerWarp';
+
+export interface RootRenderResType extends RenderResult {
+  _history: MemoryHistory;
+}
+// test utils file
+export function renderWithRoot(
+  ui,
+  {
+    route = '/',
+    history = createMemoryHistory({ initialEntries: [route] }),
+  } = {},
+): RootRenderResType {
+  const Wrapper = ({ children }) => (
+    <Router history={history}>
+      <ProvideWarp>
+        {children}
+      </ProvideWarp>
+    </Router>
+  );
+  return {
+    ...render(ui, { wrapper: Wrapper }),
+    // adding `history` to the returned utilities to allow us
+    // to reference it in our tests (just try to avoid using
+    // this to test implementation details).
+    _history: history,
+  };
+}
+```
+
+使用的时候如下，各种 useContext 的代码都能正常运行，无需关注 root 环境配置问题
+
+``` javascript
+describe('test', () => {
+  it('test', async () => {
+    const { default: App } = await import('src/pages/firstLogin/index');
+    let el: RootRenderResType;
+    await act(async () => {
+      el = await renderWithRoot((<App />), {
+        route: PageUrl.firstLogin, // '/partners/firstLogin' 页面url
+      });
+    });
+  })
+})
+```
+
+### 4. 异步 引入 App, 异步引入之前 mock 好基础数据（App 会读到的数据，例如 window.__CONFIG__）。 可使用 import 或 require
+
+``` javascript
+// 开头引入会导致后面 mock 的 __CONFIG__ 无法被正常读取
+// 原因: import 是编译时执行，编译的时候就会读取 __CONFIG__ 了。所以要改写成 动态导入
+// import App from 'src/pages/firstLogin/index'; 
+describe('test', () => {
+  beforeEach(() => {
+    window.__CONFIG__ = {
+      ...window.__CONFIG__,
+      ...MockConfig,
+    };
+  });
+  it('uid 未成功注册 aid', async () => {
+    // import App 之前 mock 好 __CONFIG__ 对象。
+    window.__CONFIG__ = {
+      ...window.__CONFIG__,
+      uid: mockUidForCheckState.none,
+    };
+    const { default: App } = await import('src/pages/firstLogin/index');
+    let el: RootRenderResType;
+    await act(async () => {
+      el = await renderWithRoot((<App />), {
+        route: PageUrl.firstLogin, // '/partners/firstLogin' 页面url
+      });
+    });
+  });
+
+  it('uid 成功注册 aid', async () => {
+    // import App 之前 mock 好 __CONFIG__ 对象。
+    window.__CONFIG__ = {
+      ...window.__CONFIG__,
+      uid: mockUidForCheckState.ok,
+    };
+    const { default: App } = await import('src/pages/firstLogin/index');
+    let el: RootRenderResType;
+    await act(async () => {
+      el = await renderWithRoot((<App />), {
+        route: PageUrl.firstLogin, // '/partners/firstLogin' 页面url
+      });
+    });
+  })
+})
+```
+### 5. 设置超时时间
+
+> it 内部逻辑多的时候 (一个 it 测试了多个异步不走，含多个 act)，可能会超时（3000ms）, 可在 jest.setupEnv.ts 中配置 超时时间
+
+![1009](./img/1009.png)
+
+### 6. 使用 debug 模式 (无界面写测试用例简直是灾难)
+
+> testing-library 库中的 debug 方法可以随时查看当前的 element 的快照。注意：需要额外的配置，否则只能查看少数的几十行。
+
+Demo:
+
+``` javascript
+it('Render page BookingReport test test page change option', async () => {
+  let el;
+  await act(async () => {
+    el = await renderWithRoot((
+      <ReportProviderWarp>
+        <BookingReport />
+      </ReportProviderWarp>
+    ), {
+      route: PageUrl._report.booking,
+    });
+  });
+  const { container } = el;
+  const table = container.querySelector('table');
+  expect(table).not.toBe(null);
+  // 寻找 page 2 按钮
+  const pageC = el.getByTestId('base-pagination');
+  // el.debug(pageC);
+  const allPageBtn = Array.from(pageC.querySelectorAll('button'));
+  const page2Btn = allPageBtn.find((item) => item.textContent === '2');
+
+  // 打印找到的 按钮， 若为空会打印整个 body, 可以在 body 中看整个dom
+  el.debug(page2Btn);
+  
+  expect(page2Btn).toBeDefined();
+  await act(async () => {
+    fireEvent.click(page2Btn);
+  });
+  const page2TrArr = table.querySelectorAll('tbody tr');
+  expect(page2TrArr.length).toBe(mockListDataPage2.allianceOrderList.length);
+});
+```
+
+![1010](./img/1010.png)
+
+额外的配置：最多打印 100000 行，同时你的控制台也需要设置，不然控制太只支持 1k 行也是不够的
+
+``` javascript
+// package.json
+"scripts": {
+  "test": "jest",
+  "test:update": "npm run test -- --updateSnapshot",
+  "test:coverage": "npm run test -- --coverage",
+  "test:ci": "jest --coverage --json --outputFile=./coverage/test-result.json",
+
+  "test:debug": "DEBUG_PRINT_LIMIT=100000 npm run test -- --updateSnapshot --coverage",
+},
+```
+
+### 7. 测试用例越来越多? 速度越来越来慢? `collectCoverageFrom` and `testMatch` 解救你
+
+``` javascript
+// 默认配置
+config.collectCoverageFrom = [
+  '<rootDir>/app/ad/**/*.{ts,tsx,js,jsx}',
+  '<rootDir>/app/views/**/*.{ts,tsx,js,jsx}',
+];
+// debug 时指定测哪些目录下文件的覆盖率情况
+const _collectCoverageFrom = [
+  // '<rootDir>/app/views/src/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/common/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/report/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/account/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/tools/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/tools/staticbanner/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/tools/dynamicBanner/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/tools/searchBox/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/tools/ApiTool/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/dashboard/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/faq/**/*.{ts,tsx,js,jsx}',
+  // '<rootDir>/app/views/src/pages/firstLogin/**/*.{ts,tsx,js,jsx}',
+];
+// debug 时指定测哪个 test case 文件
+const _testMatch = [
+  // '<rootDir>/test/ap/pages/tools/**/?(*.)+(spec|test).[jt]s?(x)',
+  // '<rootDir>/test/ap/pages/tools/staticbanner.test.tsx',
+  // '<rootDir>/test/ap/pages/report/paymentVoucher.test.js',
+  // '<rootDir>/test/ap/pages/tools/dynamicbanner.test.tsx',
+  // '<rootDir>/test/ap/pages/tools/apitool.test.tsx',
+  // '<rootDir>/test/ap/pages/tools/searchbox.test.tsx',
+  // '<rootDir>/test/ap/pages/dashboard/index.test.tsx',
+  // '<rootDir>/test/ap/pages/faq/index.test.tsx',
+  '<rootDir>/test/ap/pages/firstLogin/index.test.tsx',
+];
+
+if (_collectCoverageFrom.length > 0) config.collectCoverageFrom = _collectCoverageFrom;
+if (_testMatch.length > 0) config.testMatch = _testMatch;
+```
+
+
+
