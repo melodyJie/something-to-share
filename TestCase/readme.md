@@ -512,7 +512,7 @@ describe('test', () => {
 })
 ```
 
-### 4. 异步 引入 App, 异步引入之前 mock 好基础数据（App 会读到的数据，例如 window.__CONFIG__）。 可使用 import 或 require
+### 4. 异步 引入 App, 异步引入之前 mock 好基础数据（App 会读到的数据，例如 `window.__CONFIG__`）。 可使用 import 或 require
 
 ``` javascript
 // 开头引入会导致后面 mock 的 __CONFIG__ 无法被正常读取
